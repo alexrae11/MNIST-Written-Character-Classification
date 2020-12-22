@@ -1,0 +1,176 @@
+# 1 - Define the load_mnist function and show_digit function
+load_mnist <- function() {
+  load_image_file <- function(filename) {
+    ret = list()
+    f = file(filename,'rb')
+    readBin(f,'integer',n=1,size=4,endian='big')
+    ret$n = readBin(f,'integer',n=1,size=4,endian='big')
+    nrow = readBin(f,'integer',n=1,size=4,endian='big')
+    ncol = readBin(f,'integer',n=1,size=4,endian='big')
+    x = readBin(f,'integer',n=ret$n*nrow*ncol,size=1,signed=F)
+    ret$x = matrix(x, ncol=nrow*ncol, byrow=T)
+    close(f)
+    ret
+  }
+  load_label_file <- function(filename) {
+    f = file(filename,'rb')
+    readBin(f,'integer',n=1,size=4,endian='big')
+    n = readBin(f,'integer',n=1,size=4,endian='big')
+    y = readBin(f,'integer',n=n,size=1,signed=F)
+    close(f)
+    y
+  }
+  train <<- load_image_file('//brookesf1/s78/19039078/ML/train-images-idx3-ubyte')
+  test <<- load_image_file('//brookesf1/s78/19039078/ML/t10k-images-idx3-ubyte')
+  
+  train$y <<- load_label_file('//brookesf1/s78/19039078/ML/train-labels-idx1-ubyte')
+  test$y <<- load_label_file('//brookesf1/s78/19039078/ML/t10k-labels-idx1-ubyte')  
+}
+
+show_digit <- function(arr784, col=gray(12:1/12), ...) {
+  image(matrix(arr784, nrow=28)[,28:1], col=col, ...)
+}
+
+# 2 - load data
+load_mnist()
+
+# inspect contents
+summary(train$x)
+summary(train$y)
+
+# show pictures
+train$x[1,]
+show_digit(train$x[1,])
+
+# investigate individual features (pixels)
+pairs(test$x[,404:408],  col=c("red","green","blue","aquamarine","burlywood","darkmagenta","chartreuse","yellow","chocolate","darkolivegreen")
+      [test$y+1])
+# bugfix: add one to labels (0 labels in the original table make R skip the entry, which creates an inconsistent coloring)
+
+# some pixels correlate very strongly, others don't
+C <- cov(train$x)
+image(C)
+
+# 3 - apply PCA to the train dataset and plot
+pcaTrain = prcomp(train$x, center = TRUE)
+plot(pcaTrain)
+
+# 4 - determine the number of principle components for 90% variance
+trainvariance <- pcaTrain$x ^ 2;
+sumvariance <- sum(trainvariance)
+components <- 0
+for (i in seq(1, 100)) {
+  components <- components+ ((sum(trainvariance[, i]) / sumvariance) * 100)
+  print(c(i, components))
+}
+components <- 87
+
+# 5 - select only the first 87 components in the train dataset, plot
+xTrain <- pcaTrain$x[,1:87]
+plot(xTrain,pch=23, bg=c("red","green","blue")[(train$y + 1)])
+
+# 6 - train knn and make predictions on training data, plot
+library(class)
+yTrainPrediction <- knn(xTrain,xTrain,train$y,k=3)
+plot(xTrain,pch=23, bg=c("red","green","blue")[(yTrainPrediction)])
+
+# 7 - apply PCA transform to test data 
+xTest <- predict(pcaTrain, test$x)
+xTest <- xTest[,1:87]
+
+# 8 - predict test data based on training data, plot.
+plot(xTest,pch=23, bg=c("red","green","blue")[(test$y)])
+yTestPrediction <- knn(xTrain,xTest,train$y,k=3)
+plot(xTest,pch=23, bg=c("red","green","blue")[(yTestPrediction)])
+
+xTrain87 <- xTrain[,1: 87]
+xTest87 <- xTest[,1: 87]
+
+#xhat formula
+xhat = t(t(pcaTrain$x[,1:components] %*%
+             t(pcaTrain$rotation[,1:components])) * pcaTrain$center)
+
+show_digit(xhat[1,])
+
+# determine optimum value for k
+for (i in seq(1, 15, 2)) {
+  kNearestModel <- knn(xTrain87, xTest87, train$y, k=i)
+  correct <- (kNearestModel == test$y)
+  percentCheck <- (sum(correct == TRUE)/length(correct)) * 100
+  print(i)
+  print(percentCheck)
+}
+k=3
+
+kNearestModel <- knn(xTrain87, xTest87, train$y, k=3)
+correct <- (kNearestModel == test$y)
+percentCheck <- (sum(correct == TRUE)/length(correct)) * 100
+length <- length(correct)
+
+plot(xTrain,pch=23, col=c("red","green","blue","aquamarine","burlywood","darkmagenta","chartreuse","yellow","chocolate","darkolivegreen")[(train$y + 1)])
+
+#percent of correctly predicted values for train where k=3
+testPredict <- knn(xTrain87, xTest87, train$y, k=3)
+plot(xTest87, pch=23, bg=c("red","green")[factor(correct)])
+
+# neural network
+install.packages("NeuralNetTools")
+library(NeuralNetTools)
+install.packages("plotnet")
+library(nnet)
+
+dataFrameTrain <- as.data.frame(xTrain)
+dataFrameTrain87 <- as.data.frame(xTrain87)
+finalDataTrain <- as.data.frame(train$x)
+
+dataLabelTrain <- class.ind(train$y)
+
+nn <- nnet(dataFrameTrain[1:2],
+           dataLabelTrain,
+           size=20,
+           softmax = TRUE,
+           maxit=100)
+networkPrediction <- predict(nn, as.data.frame(xTest))
+
+nn87 <- nnet(dataFrameTrain87[1:87],
+             dataLabelTrain,
+             size=25,
+             softmax = TRUE,
+             maxit=100,
+             MaxNWts = 10000)
+networkPrediction <- predict(nn87, as.data.frame(xTest87))
+
+nn87b <- nnet(dataFrameTrain87[1:87],
+             dataLabelTrain,
+             size=40,
+             softmax = TRUE,
+             maxit=30,
+             MaxNWts = 10000)
+networkPrediction <- predict(nn87b, as.data.frame(xTest87))
+
+nn87c <- nnet(dataFrameTrain87[1:87],
+              dataLabelTrain,
+              size=100,
+              softmax = TRUE,
+              maxit=100,
+              MaxNWts = 10000)
+networkPrediction <- predict(nn87c, as.data.frame(xTest87))
+
+nnFinal <- nnet(realDataTrain
+               [1:784],
+               dataLabelTrain,
+               size=20,
+               softmax = TRUE,
+               maxit=10,
+               MaxNwts = 30000)
+networkPrediction <- predict(nnFinal, as.data.frame(test$x))
+
+network <- colnames(networkPrediction)[max.col(networkPrediction,ties.method="first")]
+networkCorrect <- (network == test$y)
+networkPercent <- (sum(networkCorrect == TRUE)/length(networkCorrect)) * 100
+
+plotnet(nn87c,
+        rel_rsc = 1,
+        pad_x = 1,
+        max_sp = TRUE,
+        cex_val = 0.5)
