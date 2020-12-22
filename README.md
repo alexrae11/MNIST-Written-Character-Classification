@@ -13,8 +13,13 @@ As part of my machine learning coursework I had to do the following:
 This was achieved by applying existing algorithms in R to the MNIST machine learning problem and dataset. 
 
 The following criteria was required:
+
 -Image data from the data set needs to be loaded and preprocessed.
+
 -Apply appropriate dimension reduction techniques for visualization of the data set. 
+
 -Use pre-processed and dimension-reduced data to train a k-nearest-neighbor (kNN) classifier on the dataset.
+
 -Use appropriate statistical tools to estimate its classification error and determine which value of k is best suited for the task. 
+
 -Choose one additional, suitable classification algorithm and evaluate its effectiveness on the dataset. 
